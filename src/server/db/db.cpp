@@ -46,3 +46,8 @@ MYSQL_RES* MySql::query(string sql)
     }
     return mysql_use_result(_conn);
 }
+
+int MySql::insert_id()
+{
+    return mysql_insert_id(_conn);
+}

@@ -11,6 +11,8 @@ public:
     bool connect(); 
     bool update(string sql);
     MYSQL_RES* query(string sql);
+    int insert_id();
+
 private:
     MYSQL *_conn;
 };
