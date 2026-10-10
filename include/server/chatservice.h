@@ -15,14 +15,19 @@ using muduo::Timestamp;
 
 #include "pub.h"
 
+#include "usermodel.h"
+
 class ChatService {
     using MsgHandler = std::function<void(const TcpConnectionPtr &conn, json &js, Timestamp)>;
 public:
     static ChatService* instance();
     MsgHandler getHandler(int msgid);
 private:
-    ChatService();
     void login(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void enroll(const TcpConnectionPtr &conn, json &js, Timestamp time);
+
+    ChatService();
     unordered_map<int, MsgHandler> msgHandlerMap;
+
+    UserModel _userModel;
 };

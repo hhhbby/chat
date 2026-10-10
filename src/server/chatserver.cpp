@@ -34,6 +34,6 @@ void ChatServer::onMessage(const TcpConnectionPtr &conn, Buffer *buffer, Timesta
     json js = js.parse(buf);
 
     ChatService *service = ChatService::instance();
-    auto handler = service->getHandler(js["msgid"]);
+    auto handler = service->getHandler(js["msgid"]/*.get<int>()*/);
     handler(conn, js, time);
 }
