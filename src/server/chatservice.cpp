@@ -20,6 +20,7 @@ ChatService::ChatService()
 {
     _msgHandlerMap[static_cast<int>(MsgType::LOGIN)] = bind(&ChatService::login, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::ENROLL)] = bind(&ChatService::enroll, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::PRIVATE_CHAT)] = bind(&ChatService::privateChat, this, _1, _2, _3);
 }
 
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -72,4 +73,23 @@ void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)
         response["errno"] = 1;
     }
     conn->send(response.dump());
+}
+
+void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
+{
+    int from = js["from"];
+    int to = js["to"];
+    string fromName = js["fromName"];
+    string msg = js["msg"];
+
+    {
+        lock_guard<mutex> lock(_connMtx);
+        auto it = _userConnMap.find(to);
+        if (it != _userConnMap.end())   // 当前to用户在线，
+            it->second->send(js.dump());
+        else {
+
+        }
+    }
+
 }
