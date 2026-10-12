@@ -15,3 +15,33 @@ bool UserModel::insert(User& user)
         user.id = mysql.insert_id();
     return res;
 }
+
+User UserModel::queryById(int id)
+{
+    User user;
+    char sql[1024] = {'\0'};
+    sprintf(sql, "select * from user where id = %d", id);
+    MYSQL_RES* res = mysql.query(sql);
+    if (res)
+    {
+        MYSQL_ROW row = mysql_fetch_row(res);
+        if (row)
+        {
+            // 可能查询成功，但是符合条件的row为空
+            user.id = atoi(row[0]);
+            user.name = row[1];
+            user.passwd = row[2];
+            user.state = row[3];
+        }
+        mysql_free_result(res);
+    }
+    return user;
+}
+
+bool UserModel::updateState(const User &user)
+{
+    char sql[1024] = {'\0'};
+    sprintf(sql, "update user set state = '%s' where id = %d LIMIT 1", user.state.c_str(), user.id);
+    bool res = mysql.update(sql);
+    return res;
+}

@@ -45,7 +45,7 @@ MYSQL_RES* MySql::query(string sql)
 {
     if (mysql_query(_conn, sql.c_str()))
     {
-        LOG_INFO << "查询失败";
+        LOG_INFO << "查询失败" << mysql_error(_conn);
         return nullptr;
     }
     return mysql_use_result(_conn);

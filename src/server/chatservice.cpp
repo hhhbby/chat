@@ -8,7 +8,8 @@ ChatService* ChatService::instance()
 }
 ChatService::MsgHandler ChatService::getHandler(int msgid) 
 {
-    if (msgid < static_cast<int>(MsgType::NUM_MSG))
+    // 减少对map的查找次数
+    if (msgid < static_cast<int>(MsgType::NUM_MSG) && msgHandlerMap.find(msgid) != msgHandlerMap.end())
         return msgHandlerMap[msgid];
     else 
         return [msgid](const TcpConnectionPtr &conn, json &js, Timestamp time){
@@ -24,6 +25,29 @@ ChatService::ChatService()
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     LOG_INFO << "login ....";
+    int id = js["id"];
+    string passwd = js["passwd"];
+    User user = _userModel.queryById(id);
+
+    json response;
+    response["msgid"] = MsgType::LOGIN_ACK;
+    if (user.id == -1)
+    {
+        response["errno"] = 1;
+        response["errmsg"] = "user id or password is not correct, please try again";
+    } else if (passwd == user.passwd) {
+        if (user.state == "online")
+        {
+            response["errno"] = 2;
+            response["errmsg"] = "user is online, please try later";
+        } else {
+            response["errno"] = 0;
+            response["name"] = user.name;
+            user.state = "online";
+            _userModel.updateState(user);
+        }
+    }
+    conn->send(response.dump());
 }
 
 void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)
