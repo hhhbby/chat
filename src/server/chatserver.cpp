@@ -13,6 +13,7 @@ ChatServer::ChatServer(EventLoop *loop, const InetAddress &listenAddr, const str
         onMessage(conn, buffer, time);
     };
     _server.setMessageCallback(f);
+    _server.setThreadNum(4);
 }
 
 void ChatServer::start()

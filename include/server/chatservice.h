@@ -1,5 +1,8 @@
 #include <unordered_map>
+#include <mutex>
 using std::unordered_map;
+using std::mutex;
+using std::lock_guard;
 
 #include <functional>
 using std::function;
@@ -27,7 +30,9 @@ private:
     void enroll(const TcpConnectionPtr &conn, json &js, Timestamp time);
 
     ChatService();
-    unordered_map<int, MsgHandler> msgHandlerMap;
+    unordered_map<int, MsgHandler> _msgHandlerMap;
+    unordered_map<int, TcpConnectionPtr> _userConnMap;
+    mutex _connMtx;
 
     UserModel _userModel;
 };

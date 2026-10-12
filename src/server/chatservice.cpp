@@ -9,8 +9,8 @@ ChatService* ChatService::instance()
 ChatService::MsgHandler ChatService::getHandler(int msgid) 
 {
     // 减少对map的查找次数
-    if (msgid < static_cast<int>(MsgType::NUM_MSG) && msgHandlerMap.find(msgid) != msgHandlerMap.end())
-        return msgHandlerMap[msgid];
+    if (msgid < static_cast<int>(MsgType::NUM_MSG) && _msgHandlerMap.find(msgid) != _msgHandlerMap.end())
+        return _msgHandlerMap[msgid];
     else 
         return [msgid](const TcpConnectionPtr &conn, json &js, Timestamp time){
             LOG_INFO << "msgid " << msgid << " don't have matched handler";
@@ -18,8 +18,8 @@ ChatService::MsgHandler ChatService::getHandler(int msgid)
 }
 ChatService::ChatService()
 {
-    msgHandlerMap[static_cast<int>(MsgType::LOGIN)] = bind(&ChatService::login, this, _1, _2, _3);
-    msgHandlerMap[static_cast<int>(MsgType::ENROLL)] = bind(&ChatService::enroll, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::LOGIN)] = bind(&ChatService::login, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::ENROLL)] = bind(&ChatService::enroll, this, _1, _2, _3);
 }
 
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -45,6 +45,10 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             response["name"] = user.name;
             user.state = "online";
             _userModel.updateState(user);
+            {
+                lock_guard<mutex> lock(_connMtx);
+                _userConnMap.insert({id, conn});
+            }
         }
     }
     conn->send(response.dump());
