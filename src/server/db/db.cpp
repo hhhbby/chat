@@ -6,6 +6,14 @@ static string user = "root";
 static string passwd = "123456";
 static string database = "chat";
 
+MySql *MySql::instance()
+{
+    static MySql mysql;
+    if (!mysql._conn)
+        mysql.connect();
+    return &mysql;
+}
+
 MySql::MySql()
 {
     // 错误写法  mysql_init(_conn);

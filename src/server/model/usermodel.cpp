@@ -1,18 +1,13 @@
 #include "usermodel.h"
 
-UserModel::UserModel()
-{
-    mysql.connect();
-}
-
 bool UserModel::insert(User& user)
 {
     char sql[1024] = {'\0'};
     // 注意sql语句的写法
-    sprintf(sql, "insert into user(name, password, state) values('%s', '%s', '%s')", user.name.c_str(), user.passwd.c_str(), user.state.c_str());
-    bool res = mysql.update(sql);
+    snprintf(sql, sizeof sql, "insert into user(name, password, state) values('%s', '%s', '%s')", user.name.c_str(), user.passwd.c_str(), user.state.c_str());
+    bool res = mysql->update(sql);
     if (res)
-        user.id = mysql.insert_id();
+        user.id = mysql->insert_id();
     return res;
 }
 
@@ -20,8 +15,8 @@ User UserModel::queryById(int id)
 {
     User user;
     char sql[1024] = {'\0'};
-    sprintf(sql, "select * from user where id = %d", id);
-    MYSQL_RES* res = mysql.query(sql);
+    snprintf(sql, sizeof sql, "select * from user where id = %d", id);
+    MYSQL_RES* res = mysql->query(sql);
     if (res)
     {
         MYSQL_ROW row = mysql_fetch_row(res);
@@ -41,7 +36,7 @@ User UserModel::queryById(int id)
 bool UserModel::updateState(const User &user)
 {
     char sql[1024] = {'\0'};
-    sprintf(sql, "update user set state = '%s' where id = %d LIMIT 1", user.state.c_str(), user.id);
-    bool res = mysql.update(sql);
+    snprintf(sql, sizeof sql, "update user set state = '%s' where id = %d LIMIT 1", user.state.c_str(), user.id);
+    bool res = mysql->update(sql);
     return res;
 }

@@ -3,10 +3,9 @@
 
 class UserModel {
 public:
-    UserModel();
     bool insert(User& user);
     User queryById(int id);
     bool updateState(const User &user);
 private:
-    MySql mysql;
+    MySql* mysql = MySql::instance();
 };

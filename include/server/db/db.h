@@ -5,8 +5,9 @@
 using std::string;
 
 class MySql {
-public:
     MySql();
+public:
+    static MySql* instance();
     ~MySql();
     bool connect(); 
     bool update(string sql);
