@@ -21,6 +21,7 @@ using muduo::Timestamp;
 #include "usermodel.h"
 #include "offlinemessagemodel.h"
 #include "friendmodel.h"
+#include "groupmodel.h"
 
 class ChatService {
     using MsgHandler = std::function<void(const TcpConnectionPtr &conn, json &js, Timestamp)>;
@@ -33,6 +34,9 @@ private:
     void enroll(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void addFriend(const TcpConnectionPtr &conn, json &js, Timestamp time);
+    void addGroup(const TcpConnectionPtr &conn, json &js, Timestamp time);
+    void joinGroup(const TcpConnectionPtr &conn, json &js, Timestamp time);
+    void groupChat(const TcpConnectionPtr &conn, json &js, Timestamp time);
 
     ChatService();
     unordered_map<int, MsgHandler> _msgHandlerMap;
@@ -42,4 +46,5 @@ private:
     UserModel _userModel;
     OfflineMessageModel _offlineMessageModel;
     FriendModel _friendModel;
+    GroupModel _groupModel;
 };
