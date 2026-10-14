@@ -10,14 +10,16 @@ MySql *MySql::instance()
 {
     static MySql mysql;
     if (!mysql._conn)
+    {
+        // 错误写法  mysql_init(_conn);
+        mysql._conn = mysql_init(nullptr);
         mysql.connect();
+    }
     return &mysql;
 }
 
-MySql::MySql()
+MySql::MySql():_conn(nullptr)
 {
-    // 错误写法  mysql_init(_conn);
-    _conn = mysql_init(nullptr);
 }
 
 MySql::~MySql()

@@ -11,7 +11,7 @@ bool UserModel::insert(User& user)
     return res;
 }
 
-User UserModel::queryById(int id)
+User UserModel::query(int id)
 {
     User user;
     char sql[1024] = {'\0'};

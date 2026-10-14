@@ -19,6 +19,7 @@ using muduo::Timestamp;
 #include "pub.h"
 
 #include "usermodel.h"
+#include "offlinemessagemodel.h"
 
 class ChatService {
     using MsgHandler = std::function<void(const TcpConnectionPtr &conn, json &js, Timestamp)>;
@@ -36,4 +37,6 @@ private:
     mutex _connMtx;
 
     UserModel _userModel;
+    OfflineMessageModel _offlineMessageModel;
+    
 };

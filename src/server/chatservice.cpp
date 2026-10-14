@@ -28,7 +28,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     LOG_INFO << "login ....";
     int id = js["id"];
     string passwd = js["passwd"];
-    User user = _userModel.queryById(id);
+    User user = _userModel.query(id);
 
     json response;
     response["msgid"] = MsgType::LOGIN_ACK;
@@ -49,6 +49,12 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             {
                 lock_guard<mutex> lock(_connMtx);
                 _userConnMap.insert({id, conn});
+            }
+            vector<string> msgs = _offlineMessageModel.query(id);
+            if (msgs.size() > 0)
+            {
+                response["offlinemsg"] = msgs;
+                _offlineMessageModel.remove(id);
             }
         }
     }
@@ -77,19 +83,18 @@ void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)
 
 void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
-    int from = js["from"];
+    // int from = js["from"];
     int to = js["to"];
-    string fromName = js["fromName"];
-    string msg = js["msg"];
+    // string fromName = js["fromName"];
+    // string msg = js["msg"];
 
     {
         lock_guard<mutex> lock(_connMtx);
         auto it = _userConnMap.find(to);
-        if (it != _userConnMap.end())   // 当前to用户在线，
+        if (it != _userConnMap.end()) {  // 当前to用户在线，
             it->second->send(js.dump());
-        else {
-
+            return;
         }
     }
-
+    _offlineMessageModel.insert(to, js.dump());
 }
