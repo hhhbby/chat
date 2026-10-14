@@ -20,16 +20,19 @@ using muduo::Timestamp;
 
 #include "usermodel.h"
 #include "offlinemessagemodel.h"
+#include "friendmodel.h"
 
 class ChatService {
     using MsgHandler = std::function<void(const TcpConnectionPtr &conn, json &js, Timestamp)>;
 public:
     static ChatService* instance();
     MsgHandler getHandler(int msgid);
+    bool reset();
 private:
     void login(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void enroll(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time);
+    void addFriend(const TcpConnectionPtr &conn, json &js, Timestamp time);
 
     ChatService();
     unordered_map<int, MsgHandler> _msgHandlerMap;
@@ -38,5 +41,5 @@ private:
 
     UserModel _userModel;
     OfflineMessageModel _offlineMessageModel;
-    
+    FriendModel _friendModel;
 };

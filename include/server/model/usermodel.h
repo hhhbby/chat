@@ -6,6 +6,7 @@ public:
     bool insert(User& user);
     User query(int id);
     bool updateState(const User &user);
+    bool resetState();
 private:
     MySql* mysql = MySql::instance();
 };

@@ -1,7 +1,7 @@
 #include "offlinemessagemodel.h"
-#include "db.h"
 #include "json.hpp"
 using json = nlohmann::json;
+
 bool OfflineMessageModel::insert(int id, string msg)
 {
     char sql[1024]{};

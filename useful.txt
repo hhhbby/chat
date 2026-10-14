@@ -2,6 +2,8 @@
 {"msgid":0,"id":10,"passwd":"123456"}
 {"msgid":0,"id":22,"passwd":"123"}
 {"msgid":0,"id":25,"passwd":"123123"}
+{"msgid":0,"id":13,"passwd":"123456"}
+
 
 # test private chat
 {"msgid":4,"from":22,"to":25,"fromName":"zzz","msg":"hhhh"}

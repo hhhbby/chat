@@ -6,5 +6,6 @@ enum class MsgType{
     ENROLL,
     ENROLL_ACK,
     PRIVATE_CHAT,
+    ADD_FRIEND,
     NUM_MSG
 };

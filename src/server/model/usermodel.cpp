@@ -37,6 +37,11 @@ bool UserModel::updateState(const User &user)
 {
     char sql[1024] = {'\0'};
     snprintf(sql, sizeof sql, "update user set state = '%s' where id = %d LIMIT 1", user.state.c_str(), user.id);
-    bool res = mysql->update(sql);
-    return res;
+    return mysql->update(sql);
+}
+
+bool UserModel::resetState()
+{
+    char sql[] = "UPDATE user SET state = 'offline' WHERE state = 'online'";
+    return mysql->update(sql);
 }

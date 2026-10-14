@@ -16,11 +16,16 @@ ChatService::MsgHandler ChatService::getHandler(int msgid)
             LOG_INFO << "msgid " << msgid << " don't have matched handler";
         };
 }
+bool ChatService::reset()
+{
+    return _userModel.resetState();
+}
 ChatService::ChatService()
 {
     _msgHandlerMap[static_cast<int>(MsgType::LOGIN)] = bind(&ChatService::login, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::ENROLL)] = bind(&ChatService::enroll, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::PRIVATE_CHAT)] = bind(&ChatService::privateChat, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::ADD_FRIEND)] = bind(&ChatService::addFriend, this, _1, _2, _3);
 }
 
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -50,12 +55,17 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
                 lock_guard<mutex> lock(_connMtx);
                 _userConnMap.insert({id, conn});
             }
+            // 读取离线消息
             vector<string> msgs = _offlineMessageModel.query(id);
-            if (msgs.size() > 0)
+            if (!msgs.empty())
             {
-                response["offlinemsg"] = msgs;
+                response["offlinemsgs"] = msgs;
                 _offlineMessageModel.remove(id);
             }
+            //读取好友列表
+            vector<string> friends = _friendModel.query(id);
+            if (!friends.empty())
+                response["frineds"] = friends;
         }
     }
     conn->send(response.dump());
@@ -97,4 +107,11 @@ void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp 
         }
     }
     _offlineMessageModel.insert(to, js.dump());
+}
+
+void ChatService::addFriend(const TcpConnectionPtr &conn, json &js, Timestamp time)
+{
+    int id = js["id"];
+    int friendid = js["friendid"];
+    _friendModel.insert(id, friendid);
 }
