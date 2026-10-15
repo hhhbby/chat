@@ -28,6 +28,20 @@ ChatService::ChatService()
     _msgHandlerMap[static_cast<int>(MsgType::ADD_FRIEND)] = bind(&ChatService::addFriend, this, _1, _2, _3);
 }
 
+void ChatService::clientCloseException(const TcpConnectionPtr &conn)
+{
+
+    lock_guard<mutex> lock(_connMtx);
+    for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
+    {
+        if (it->second == conn)
+        {
+            it = _userConnMap.erase(it);
+            break;
+        }
+    }
+}
+
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
     LOG_INFO << "login ....";
@@ -65,7 +79,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             // 读取好友列表
             vector<string> friends = _friendModel.query(id);
             if (!friends.empty())
-                response["frineds"] = friends;
+                response["friends"] = friends;
             // 读取群组列表
             vector<string> groups = _groupModel.queryGroup(id);
             if (!groups.empty())

@@ -22,7 +22,7 @@ vector<string> OfflineMessageModel::query(int id)
         {
             // TODO maybe more effective
             json msg;
-            msg["userid"] = atoi(row[0]);
+            // msg["userid"] = atoi(row[0]);
             msg["message"] = row[1];
             msgs.push_back(msg.dump());
         }

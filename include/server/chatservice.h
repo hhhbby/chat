@@ -28,6 +28,7 @@ class ChatService {
 public:
     static ChatService* instance();
     MsgHandler getHandler(int msgid);
+    void clientCloseException(const TcpConnectionPtr &conn);
     bool reset();
 private:
     void login(const TcpConnectionPtr &conn, json &js, Timestamp time);

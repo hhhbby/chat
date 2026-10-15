@@ -1,8 +1,12 @@
 #include <iostream>
+#include <vector>
+#include <string>
 using std::cin, std::cout, std::endl;
+using std::vector, std::string;
 
 #include "pub.h"
 #include "user.hpp"
+#include "group.hpp"
 #include "json.hpp"
 using json = nlohmann::json;
 
@@ -14,8 +18,11 @@ using json = nlohmann::json;
     exit(-1);\
 }
 
-User _me;
+User g_me;
+vector<User> g_currentUserFriendList;
+vector<Group> g_currentUserGroupList;
 
+void showLoginInfo();
 void enroll(int clientFd);
 void login(int clientFd);
 
@@ -72,15 +79,11 @@ void enroll(int clientFd)
 
     int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
     if (sendLen == -1)
-        ERR_EXIT("send failed");
-    
+        ERR_EXIT("send failed in enroll");        
     char recvBuf[1024]{};
     int recvLen = recv(clientFd, recvBuf, sizeof(recvBuf), 0);
     if (recvLen <= 0)
-    {
-        close(clientFd);
-        exit(-1);
-    }
+        ERR_EXIT("recv failed in enroll");
     json recvJs = json::parse(recvBuf);
     int errnum = recvJs["errno"];
     if (errnum == 0)
@@ -95,4 +98,88 @@ void enroll(int clientFd)
 
 void login(int clientFd)
 {
+    int id;
+    string passwd;
+    cout << "input your id:";
+    cin >> id;
+    cin.get();
+    cout << "input your passwd:";
+    getline(cin, passwd);
+    json js;
+    js["msgid"] = MsgType::LOGIN;
+    js["id"] = id;
+    js["passwd"] = passwd;
+    string sendBuf = js.dump();
+    int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
+    if (sendLen == -1)
+        ERR_EXIT("send failed in login");
+    char recvBuf[1024]{};
+    int recvLen = recv(clientFd, recvBuf, sizeof(recvBuf), 0);
+    if (recvLen <= 0)
+        ERR_EXIT("recv failed in login");
+    json recvJs = json::parse(recvBuf);
+    int errnum = recvJs["errno"];
+    if (errnum == 0)
+    {
+        string name = recvJs["name"];
+        cout << "login succedd, you are " << name << endl;
+        g_me.id = id;
+        g_me.name = name;
+        g_me.state = "online";
+        g_currentUserFriendList.clear();
+        if (recvJs.contains("friends"))
+        {
+            vector<string> friends = recvJs["friends"];
+            for (const string& friendStr : friends)
+            {
+                json js = json::parse(friendStr);
+                User user{js["id"], js["name"], "", js["state"]};
+                g_currentUserFriendList.push_back(user);
+            }
+        }
+        g_currentUserGroupList.clear();
+        if (recvJs.contains("groups"))
+        {
+            vector<string> groups = recvJs["groups"];
+            for (const string& groupStr : groups)
+            {
+                json js = json::parse(groupStr);
+                Group group{js["id"], js["groupname"], js["groupdesc"]};
+                g_currentUserGroupList.push_back(group);
+            }
+        }
+
+        showLoginInfo();
+
+        if (recvJs.contains("offlinemsgs"))
+        {
+            vector<string> offlinemsgs = recvJs["offlinemsgs"];
+            for (const string& msgStr : offlinemsgs)
+            {
+                json js = json::parse(msgStr);
+                json message = json::parse(js["message"].get<string>());
+                string fromName = message["fromName"];
+                string content = js["msg"];
+                cout << fromName << " say : " << content << endl;
+            }
+        }
+
+    } else {
+        cout << "login failed:" << recvJs["errmsg"] << endl;
+    }
+}
+
+void showLoginInfo()
+{
+    cout << "------ friends ------" << endl;
+    for (const User& u : g_currentUserFriendList)
+    {
+        cout << "id: " << u.id << ", name: " << u.name << ", state: " << u.state << endl;
+    }
+
+    cout << "------ groups ------" << endl;
+    for (const Group& g : g_currentUserGroupList)
+    {
+        cout << "id: " << g.id << ", name: " << g.groupname << ", desc: " << g.groupdesc << endl;
+    }
 }

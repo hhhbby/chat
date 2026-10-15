@@ -23,7 +23,7 @@ vector<string> GroupModel::queryGroup(int userid)
 {
     vector<string> groups;
     char sql[1024];
-    snprintf(sql, sizeof sql, "SELECT a.groupid, b.name, b.state FROM group a JOIN user b ON a.groupid = b.id WHERE a.userid = %d", userid);
+    snprintf(sql, sizeof sql, "SELECT a.id, a.groupname, a.groupdesc FROM allgroup a JOIN groupuser b ON b.groupid = a.id WHERE b.userid = %d", userid);
     MYSQL_RES* res = mysql->query(sql);
     if (res)
     {
@@ -32,8 +32,8 @@ vector<string> GroupModel::queryGroup(int userid)
         {
             json groupInfo;
             groupInfo["id"] = atoi(row[0]);
-            groupInfo["name"] = row[1];
-            groupInfo["state"] = row[2];
+            groupInfo["groupname"] = row[1];
+            groupInfo["groupdesc"] = row[2];
             groups.push_back(groupInfo.dump());
         }
         mysql_free_result(res);
