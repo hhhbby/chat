@@ -1,8 +1,13 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <unordered_map>
+#include <functional>
 using std::cin, std::cout, std::endl;
-using std::vector, std::string;
+using std::vector, std::string, std::unordered_map, std::function;
+
+#include <thread>
+using std::thread;
 
 #include "pub.h"
 #include "user.hpp"
@@ -22,9 +27,13 @@ User g_me;
 vector<User> g_currentUserFriendList;
 vector<Group> g_currentUserGroupList;
 
-void showLoginInfo();
+void showinfo();
 void enroll(int clientFd);
 void login(int clientFd);
+void logout(int clientFd);
+void help();
+void chatMenu(int clientFd);
+void readHandler(int clientFd);
 
 int main()
 {
@@ -122,7 +131,6 @@ void login(int clientFd)
     if (errnum == 0)
     {
         string name = recvJs["name"];
-        cout << "login succedd, you are " << name << endl;
         g_me.id = id;
         g_me.name = name;
         g_me.state = "online";
@@ -148,8 +156,8 @@ void login(int clientFd)
                 g_currentUserGroupList.push_back(group);
             }
         }
-
-        showLoginInfo();
+        showinfo();
+        thread(readHandler, clientFd).detach();
 
         if (recvJs.contains("offlinemsgs"))
         {
@@ -159,18 +167,132 @@ void login(int clientFd)
                 json js = json::parse(msgStr);
                 json message = json::parse(js["message"].get<string>());
                 string fromName = message["fromName"];
-                string content = js["msg"];
-                cout << fromName << " say : " << content << endl;
+                int fromId = message["id"];
+                string msg = message["msg"];
+                cout << fromName << "[" << fromId << "] say : " << msg << endl;
             }
         }
+        chatMenu(clientFd);
 
     } else {
         cout << "login failed:" << recvJs["errmsg"] << endl;
     }
+
 }
 
-void showLoginInfo()
+
+void logout(int clientFd)
 {
+    
+}
+
+void help()
+{
+    cout << "choice\t\tcommand" << endl << endl;
+    cout << "showinfo\tshowinfo" << endl;
+    cout << "addfriend\taddfriend:friendid" << endl;
+    cout << "privatechat\tprivatechat:friendid:msg" << endl;
+    cout << "addgroup\taddgroup:groupname:groupdesc" << endl;
+    cout << "joingroup\tjoingroup:groupid" << endl;
+    cout << "groupchat\tgroupchat:groupid:msg" << endl;
+    cout << "logout\tlogout" << endl;
+}
+
+bool addfriend(int clientFd, string cmd);
+bool privatechat(int clientFd, string cmd);
+bool addgroup(int clientFd, string cmd);
+bool joingroup(int clientFd, string cmd);
+bool groupchat(int clientFd, string cmd);
+
+
+unordered_map<string, function<bool(int, string)>> g_cmdMap {
+    // {"showinfo", showinfo},
+    {"addfriend", addfriend},
+    {"privatechat", privatechat},
+    {"addgroup", addgroup},
+    {"joingroup", joingroup},
+    {"groupchat", groupchat}
+};
+
+bool dipatch(int clientFd, string command)
+{
+    size_t idx = command.find(":");
+    if (idx == string::npos)
+    {
+        if (command == "showinfo")
+        {
+            showinfo();
+            return true;
+        } else if(command == "logout") {
+            logout(clientFd);
+            return true;
+        }
+    } else {
+        auto it = g_cmdMap.find(command.substr(0, idx));
+        if (it != g_cmdMap.end())
+        {
+            return it->second(clientFd, command.substr(idx + 1));
+        }
+    }
+    return false;
+}
+
+void chatMenu(int clientFd)
+{
+    while (true)
+    {
+        help();
+        cout << endl << "input your command:";
+        string command;
+        cin >> command;
+        if (!dipatch(clientFd, command))
+        {
+            cout << "invalid command" << endl;
+        }
+    }
+}
+
+void readHandler(int clientFd)
+{
+    while (true)
+    {
+        char buf[1024]{};
+        if (recv(clientFd, buf, sizeof buf, 0) <= 0)
+        {
+            close(clientFd);
+            exit(-1);
+        }
+        json js = json::parse(buf);
+        MsgType msgid = js["msgid"];
+        switch (msgid)
+        {
+        case MsgType::PRIVATE_CHAT:
+            {
+                string fromName = js["fromName"];
+                int fromid = js["id"];
+                string msg = js["msg"];
+                cout  << endl << fromName << "[" << fromid << "] say : " << msg  << endl;
+            }
+            break;
+        case MsgType::GROUP_CHAT:
+            {
+                string fromName = js["fromName"];
+                int fromid = js["id"];
+                string msg = js["msg"];
+                int groupid = js["groupid"];
+                cout  << endl << fromName << "[" << fromid << "][group " << groupid << "] say : " << msg << endl;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    
+}
+
+void showinfo()
+{
+    cout << "Hi," << g_me.name << "(id:" << g_me.id << ")" << endl;
     cout << "------ friends ------" << endl;
     for (const User& u : g_currentUserFriendList)
     {
@@ -182,4 +304,80 @@ void showLoginInfo()
     {
         cout << "id: " << g.id << ", name: " << g.groupname << ", desc: " << g.groupdesc << endl;
     }
+}
+
+bool addfriend(int clientFd, string cmd)
+{
+    int friendid = atoi(cmd.c_str());
+    if (friendid <= 0)
+        return false;
+    json js;
+    js["msgid"] = MsgType::ADD_FRIEND;
+    js["id"] = g_me.id;
+    js["friendid"] = friendid;
+    string sendBuf = js.dump();
+    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+}
+
+bool privatechat(int clientFd, string cmd)
+{
+    size_t idx = cmd.find(":");
+    if (idx == string::npos)
+        return false;
+    int friendid = atoi(cmd.substr(0, idx).c_str());
+    if (friendid <= 0)
+        return false;
+    json js;
+    js["msgid"] = MsgType::PRIVATE_CHAT;
+    js["id"] = g_me.id;
+    js["fromName"] = g_me.name;
+    js["to"] = friendid;
+    js["msg"] = cmd.substr(idx + 1);
+    string sendBuf = js.dump();
+    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+}
+
+bool addgroup(int clientFd, string cmd)
+{
+    size_t idx = cmd.find(":");
+    if (idx == string::npos)
+        return false;
+    json js;
+    js["msgid"] = MsgType::ADD_GROUP;
+    js["id"] = g_me.id;
+    js["groupname"] = cmd.substr(0, idx);
+    js["groupdesc"] = cmd.substr(idx + 1);
+    string sendBuf = js.dump();
+    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+}
+
+bool joingroup(int clientFd, string cmd)
+{
+    int groupid = atoi(cmd.c_str());
+    if (groupid == 0)
+        return false;
+    json js;
+    js["msgid"] = MsgType::JOIN_GROUP;
+    js["id"] = g_me.id;
+    js["groupid"] = groupid;
+    string sendBuf = js.dump();
+    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+}
+
+bool groupchat(int clientFd, string cmd)
+{
+    size_t idx = cmd.find(":");
+    if (idx == string::npos)
+        return false;
+    int groupid = atoi(cmd.substr(0, idx).c_str());
+    if (groupid <= 0)
+        return false;
+    json js;
+    js["msgid"] = MsgType::GROUP_CHAT;
+    js["id"] = g_me.id;
+    js["fromName"] = g_me.name;
+    js["groupid"] = groupid;
+    js["msg"] = cmd.substr(idx + 1);
+    string sendBuf = js.dump();
+    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
 }

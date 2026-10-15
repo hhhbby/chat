@@ -12,3 +12,44 @@ enum class MsgType{
     GROUP_CHAT,
     NUM_MSG
 };
+
+
+/*
+设置好json有哪些字段
+enroll
+{
+    msgid, id, name, passwd
+}
+
+login
+{
+    msgid, id, passwd
+}
+
+privateChat
+{
+    msgid, id, fromName, msg, to
+}
+
+addFriend
+{
+    msgid, id, friendid
+}
+
+addGroup
+{
+    msgid, id, groupname, groupdesc
+}
+
+joinGroup
+{
+    msgid, id, groupid
+}
+
+groupChat
+{
+    msgid, id, fromName, msg, groupid
+}
+
+
+*/

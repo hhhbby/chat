@@ -26,20 +26,29 @@ ChatService::ChatService()
     _msgHandlerMap[static_cast<int>(MsgType::ENROLL)] = bind(&ChatService::enroll, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::PRIVATE_CHAT)] = bind(&ChatService::privateChat, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::ADD_FRIEND)] = bind(&ChatService::addFriend, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::ADD_GROUP)] = bind(&ChatService::addGroup, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::JOIN_GROUP)] = bind(&ChatService::joinGroup, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::GROUP_CHAT)] = bind(&ChatService::groupChat, this, _1, _2, _3);
 }
 
 void ChatService::clientCloseException(const TcpConnectionPtr &conn)
 {
-
-    lock_guard<mutex> lock(_connMtx);
-    for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
+    int id = -1;
     {
-        if (it->second == conn)
+        lock_guard<mutex> lock(_connMtx);
+        for (auto it = _userConnMap.begin(); it != _userConnMap.end(); ++it)
         {
-            it = _userConnMap.erase(it);
-            break;
+            if (it->second == conn)
+            {
+                id = -1;
+                it = _userConnMap.erase(it);
+                break;
+            }
         }
     }
+    // 这个断开连接的客户端之前已登录
+    if (id != -1)
+        _userModel.updateState(User{id});
 }
 
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -111,7 +120,7 @@ void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)
 
 void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
 {
-    // int from = js["from"];
+    // int from = js["id"];
     int to = js["to"];
     // string fromName = js["fromName"];
     // string msg = js["msg"];
