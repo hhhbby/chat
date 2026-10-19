@@ -1,4 +1,11 @@
 #pragma once
+#include "iostream"
+using std::cout, std::endl;
+
+#define ERR_EXIT(msg) {\
+    cout << msg << endl;\
+    exit(-1);\
+}
 
 enum class MsgType{
     LOGIN,

@@ -18,11 +18,6 @@ using json = nlohmann::json;
 #include <arpa/inet.h>
 #include <unistd.h>
 
-#define ERR_EXIT(msg) {\
-    cout << msg << endl;\
-    exit(-1);\
-}
-
 User g_me;
 vector<User> g_currentUserFriendList;
 vector<Group> g_currentUserGroupList;
@@ -35,15 +30,24 @@ void help();
 void chatMenu(int clientFd);
 void readHandler(int clientFd);
 
-int main()
+int main(int argc, char** argv)
 {
+    if (argc < 2)
+    {
+        cout << "usage: " << argv[0] << " portnumber" << endl;
+        exit(-1);
+    }
+    int portnumber = atoi(argv[1]);
+    if (portnumber == 0)
+        ERR_EXIT("portnumber invalid");
+
     int clientFd = socket(AF_INET, SOCK_STREAM, 0);
     if (clientFd == -1)
         ERR_EXIT("socket failed");
     
     sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(9999);
+    serverAddr.sin_port = htons(portnumber);
     if (inet_pton(AF_INET, "127.0.0.1", static_cast<void*>(&serverAddr.sin_addr)) != 1)
         ERR_EXIT("inet_pton failed");
     if (connect(clientFd, reinterpret_cast<const sockaddr*>(&serverAddr), static_cast<socklen_t>(sizeof(sockaddr_in))) != 0)
