@@ -117,7 +117,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
                 lock_guard<mutex> lock(_connMtx);
                 _userConnMap.insert({id, conn});
             }
-            LOG_INFO << "loading offline";
+            // LOG_INFO << "loading offline";
             // 读取离线消息
             vector<string> msgs = _offlineMessageModel.query(id);
             if (!msgs.empty())
@@ -125,13 +125,13 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
                 response["offlinemsgs"] = msgs;
                 _offlineMessageModel.remove(id);
             }
-            LOG_INFO << "loading friend";
+            // LOG_INFO << "loading friend";
             // 读取好友列表
             vector<string> friends = _friendModel.query(id);
             if (!friends.empty())
                 response["friends"] = friends;
                 // 读取群组列表
-            LOG_INFO << "loading group";
+            // LOG_INFO << "loading group";
             vector<string> groups = _groupModel.queryGroup(id);
             if (!groups.empty())
                 response["groups"] = groups;

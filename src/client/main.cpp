@@ -206,7 +206,7 @@ void help()
     cout << "choice\t\tcommand" << endl << endl;
     cout << "showinfo\tshowinfo" << endl;
     cout << "addfriend\taddfriend:friendid" << endl;
-    cout << "chat\tchat:friendid:msg" << endl;
+    cout << "chat\t\tchat:friendid:msg" << endl;
     cout << "addgroup\taddgroup:groupname:groupdesc" << endl;
     cout << "joingroup\tjoingroup:groupid" << endl;
     cout << "groupchat\tgroup:groupid:msg" << endl;
@@ -256,7 +256,6 @@ void chatMenu(int clientFd)
 {
     while (g_loggedin)
     {
-        help();
         cout << endl << "input your command:";
         string command;
         cin >> command;
@@ -301,6 +300,7 @@ void readHandler(int clientFd)
         default:
             break;
         }
+        cout << endl << "input your command:" << std::flush;
     }
     
 }
@@ -319,6 +319,8 @@ void showinfo()
     {
         cout << "id: " << g.id << ", name: " << g.groupname << ", desc: " << g.groupdesc << endl;
     }
+
+    help();
 }
 
 bool addfriend(int clientFd, string cmd)

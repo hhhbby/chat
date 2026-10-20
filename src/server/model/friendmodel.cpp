@@ -13,7 +13,13 @@ vector<string> FriendModel::query(int userid)
 {
     vector<string> friends;
     char sql[1024];
-    snprintf(sql, sizeof sql, "SELECT a.friendid, b.name, b.state FROM friend a JOIN user b ON a.friendid = b.id WHERE a.userid = %d", userid);
+    snprintf(sql, sizeof sql, "SELECT a.id as friendid, a.name, a.state FROM user a JOIN \
+                    (\
+                        SELECT friendid FROM friend WHERE friend.userid = %d \
+                        UNION \
+                        SELECT userid FROM friend WHERE friend.friendid = %d \
+                    ) AS f \
+                    ON a.id = f.friendid",userid, userid);
     MYSQL_RES* res = mysql->query(sql);
     if (res)
     {
