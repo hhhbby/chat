@@ -40,8 +40,8 @@ bool UserModel::updateState(const User &user)
     return mysql->update(sql);
 }
 
-bool UserModel::resetState()
-{
-    char sql[] = "UPDATE user SET state = 'offline' WHERE state = 'online'";
-    return mysql->update(sql);
-}
+// bool UserModel::resetState()
+// {
+//     char sql[] = "UPDATE user SET state = 'offline' WHERE state = 'online'";
+//     return mysql->update(sql);
+// }

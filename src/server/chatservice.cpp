@@ -18,7 +18,21 @@ ChatService::MsgHandler ChatService::getHandler(int msgid)
 }
 bool ChatService::reset()
 {
-    return _userModel.resetState();
+    // 修改连接此服务器用户的状态为离线
+    vector<User> users;
+    {
+        lock_guard<mutex> lock(_connMtx);
+        for (auto item : _userConnMap)
+        {
+            users.push_back(User{item.first});
+        }
+    }
+    for (const User& u : users)
+    {
+        if (!_userModel.updateState(u))
+            return false;
+    }
+    return true;
 }
 ChatService::ChatService()
 {
@@ -29,6 +43,7 @@ ChatService::ChatService()
     _msgHandlerMap[static_cast<int>(MsgType::ADD_GROUP)] = bind(&ChatService::addGroup, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::JOIN_GROUP)] = bind(&ChatService::joinGroup, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::GROUP_CHAT)] = bind(&ChatService::groupChat, this, _1, _2, _3);
+    _msgHandlerMap[static_cast<int>(MsgType::LOGOUT)] = bind(&ChatService::logout, this, _1, _2, _3);
 
     if (!_redis.connect("127.0.0.1", 6379))
     {
@@ -58,7 +73,7 @@ void ChatService::clientCloseException(const TcpConnectionPtr &conn)
         {
             if (it->second == conn)
             {
-                id = -1;
+                id = it->first;
                 it = _userConnMap.erase(it);
                 break;
             }
@@ -123,6 +138,21 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
         }
     }
     conn->send(response.dump());
+}
+
+void ChatService::logout(const TcpConnectionPtr &conn, json &js, Timestamp time)
+{
+    int id = js["id"];
+    {
+        lock_guard<mutex> lock(_connMtx);
+        auto it = _userConnMap.find(id);
+        if (it != _userConnMap.end())
+        {
+            _userConnMap.erase(it);
+        }
+    }
+    _redis.unsubscribe(id);
+    _userModel.updateState(User{id});
 }
 
 void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)

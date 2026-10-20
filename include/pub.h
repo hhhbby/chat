@@ -10,6 +10,7 @@ using std::cout, std::endl;
 enum class MsgType{
     LOGIN,
     LOGIN_ACK,
+    LOGOUT,
     ENROLL,
     ENROLL_ACK,
     PRIVATE_CHAT,

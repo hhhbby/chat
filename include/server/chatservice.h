@@ -34,6 +34,7 @@ public:
     bool reset();
 private:
     void login(const TcpConnectionPtr &conn, json &js, Timestamp time);
+    void logout(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void enroll(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time);
     void addFriend(const TcpConnectionPtr &conn, json &js, Timestamp time);

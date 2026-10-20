@@ -21,6 +21,7 @@ using json = nlohmann::json;
 User g_me;
 vector<User> g_currentUserFriendList;
 vector<Group> g_currentUserGroupList;
+bool g_loggedin = false;
 
 void showinfo();
 void enroll(int clientFd);
@@ -176,6 +177,7 @@ void login(int clientFd)
                 cout << fromName << "[" << fromId << "] say : " << msg << endl;
             }
         }
+        g_loggedin = true;
         chatMenu(clientFd);
 
     } else {
@@ -187,7 +189,16 @@ void login(int clientFd)
 
 void logout(int clientFd)
 {
-    
+    json js;
+    js["msgid"] = MsgType::LOGOUT;
+    js["id"] = g_me.id;
+    string sendBuf = js.dump();
+    if (send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) < 0)
+    {
+        cout << "send loginout msg error -> " << sendBuf << endl;
+    } else {
+        g_loggedin = false;
+    }
 }
 
 void help()
@@ -195,15 +206,15 @@ void help()
     cout << "choice\t\tcommand" << endl << endl;
     cout << "showinfo\tshowinfo" << endl;
     cout << "addfriend\taddfriend:friendid" << endl;
-    cout << "privatechat\tprivatechat:friendid:msg" << endl;
+    cout << "chat\tchat:friendid:msg" << endl;
     cout << "addgroup\taddgroup:groupname:groupdesc" << endl;
     cout << "joingroup\tjoingroup:groupid" << endl;
-    cout << "groupchat\tgroupchat:groupid:msg" << endl;
-    cout << "logout\tlogout" << endl;
+    cout << "groupchat\tgroup:groupid:msg" << endl;
+    cout << "logout\t\tlogout" << endl;
 }
 
 bool addfriend(int clientFd, string cmd);
-bool privatechat(int clientFd, string cmd);
+bool chat(int clientFd, string cmd);
 bool addgroup(int clientFd, string cmd);
 bool joingroup(int clientFd, string cmd);
 bool groupchat(int clientFd, string cmd);
@@ -212,10 +223,10 @@ bool groupchat(int clientFd, string cmd);
 unordered_map<string, function<bool(int, string)>> g_cmdMap {
     // {"showinfo", showinfo},
     {"addfriend", addfriend},
-    {"privatechat", privatechat},
+    {"chat", chat},
     {"addgroup", addgroup},
     {"joingroup", joingroup},
-    {"groupchat", groupchat}
+    {"group", groupchat}
 };
 
 bool dipatch(int clientFd, string command)
@@ -243,7 +254,7 @@ bool dipatch(int clientFd, string command)
 
 void chatMenu(int clientFd)
 {
-    while (true)
+    while (g_loggedin)
     {
         help();
         cout << endl << "input your command:";
@@ -323,7 +334,7 @@ bool addfriend(int clientFd, string cmd)
     return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
 }
 
-bool privatechat(int clientFd, string cmd)
+bool chat(int clientFd, string cmd)
 {
     size_t idx = cmd.find(":");
     if (idx == string::npos)
