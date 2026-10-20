@@ -18,6 +18,8 @@ using muduo::Timestamp;
 
 #include "pub.h"
 
+#include "redis.h"
+
 #include "usermodel.h"
 #include "offlinemessagemodel.h"
 #include "friendmodel.h"
@@ -48,4 +50,7 @@ private:
     OfflineMessageModel _offlineMessageModel;
     FriendModel _friendModel;
     GroupModel _groupModel;
+
+    Redis _redis;
+    void handleRedisSubscribeMessage(int id, string msg);
 };

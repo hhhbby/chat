@@ -29,6 +29,24 @@ ChatService::ChatService()
     _msgHandlerMap[static_cast<int>(MsgType::ADD_GROUP)] = bind(&ChatService::addGroup, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::JOIN_GROUP)] = bind(&ChatService::joinGroup, this, _1, _2, _3);
     _msgHandlerMap[static_cast<int>(MsgType::GROUP_CHAT)] = bind(&ChatService::groupChat, this, _1, _2, _3);
+
+    if (!_redis.connect("127.0.0.1", 6379))
+    {
+        LOG_INFO << "redis connect failed";
+    }
+    _redis.set_notify_handler(bind(&ChatService::handleRedisSubscribeMessage, this, _1, _2));
+}
+
+void ChatService::handleRedisSubscribeMessage(int id, string msg)
+{
+    lock_guard<mutex> lock(_connMtx);
+    auto it = _userConnMap.find(id) ;
+    if (it != _userConnMap.end())
+    {
+        it->second->send(msg);
+    } else {
+        _offlineMessageModel.insert(id, msg);
+    }
 }
 
 void ChatService::clientCloseException(const TcpConnectionPtr &conn)
@@ -48,7 +66,11 @@ void ChatService::clientCloseException(const TcpConnectionPtr &conn)
     }
     // 这个断开连接的客户端之前已登录
     if (id != -1)
+    {
         _userModel.updateState(User{id});
+        _redis.unsubscribe(id);
+    }
+
 }
 
 void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -73,11 +95,14 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             response["errno"] = 0;
             response["name"] = user.name;
             user.state = "online";
+            _redis.subscribe(id);
             _userModel.updateState(user);
+            LOG_INFO << "login success";
             {
                 lock_guard<mutex> lock(_connMtx);
                 _userConnMap.insert({id, conn});
             }
+            LOG_INFO << "loading offline";
             // 读取离线消息
             vector<string> msgs = _offlineMessageModel.query(id);
             if (!msgs.empty())
@@ -85,11 +110,13 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
                 response["offlinemsgs"] = msgs;
                 _offlineMessageModel.remove(id);
             }
+            LOG_INFO << "loading friend";
             // 读取好友列表
             vector<string> friends = _friendModel.query(id);
             if (!friends.empty())
                 response["friends"] = friends;
-            // 读取群组列表
+                // 读取群组列表
+            LOG_INFO << "loading group";
             vector<string> groups = _groupModel.queryGroup(id);
             if (!groups.empty())
                 response["groups"] = groups;
@@ -133,7 +160,13 @@ void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp 
             return;
         }
     }
-    _offlineMessageModel.insert(to, js.dump());
+    User user = _userModel.query(to);
+    if (user.state == "online")
+    {
+        _redis.publish(to, js.dump());
+    } else {
+        _offlineMessageModel.insert(to, js.dump());
+    }
 }
 
 void ChatService::addFriend(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -176,5 +209,13 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
         }
     }
     for (int id : offlineUsers)
-        _offlineMessageModel.insert(id, js.dump());
+    {
+        User user = _userModel.query(id);
+        if (user.state == "online")
+        {
+            _redis.publish(id, js.dump());
+        } else {
+            _offlineMessageModel.insert(id, js.dump());
+        }
+    }
 }
