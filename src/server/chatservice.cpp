@@ -100,7 +100,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     if (user.id == -1)
     {
         response["errno"] = 1;
-        response["errmsg"] = "user id or password is not correct, please try again";
+        response["errmsg"] = "user id is not found";
     } else if (passwd == user.passwd) {
         if (user.state == "online")
         {
@@ -136,6 +136,9 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
             if (!groups.empty())
                 response["groups"] = groups;
         }
+    } else {
+        response["errno"] = 2;
+        response["errmsg"] = "user id or password is not correct";
     }
     conn->send(response.dump());
 }

@@ -5,10 +5,13 @@ using json = nlohmann::json;
 bool GroupModel::addGroup(Group& group)
 {
     char sql[1024];
-    snprintf(sql, sizeof sql, "INSERT INTO group(groupname, groupdesc) VALUES(%s, %s)", 
-            group.groupname.c_str(), group.groupname.c_str());
+    snprintf(sql, sizeof sql, "INSERT INTO allgroup(groupname, groupdesc) VALUES('%s', '%s')",
+            group.groupname.c_str(), group.groupdesc.c_str());
+    bool res = mysql->update(sql);
+    if (!res)
+        return false;
     group.id = mysql->insert_id();
-    return mysql->update(sql);
+    return true;
 }
 
 bool GroupModel::joinGroup(int groupid, int userid, string grouprole)
