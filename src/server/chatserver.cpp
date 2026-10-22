@@ -32,10 +32,25 @@ void ChatServer::onConnection(const TcpConnectionPtr &conn)
 
 void ChatServer::onMessage(const TcpConnectionPtr &conn, Buffer *buffer, Timestamp time)
 {
-    string buf = buffer->retrieveAllAsString();
-    json js = js.parse(buf);
+    while (buffer->readableBytes() >= 4)
+    {
+        uint32_t length = buffer->peekInt32();
+        if (length == 0 || length > 1024 * 1024)
+        {
+            cout << "msg length error" << endl;
+            conn->forceClose();
+            return;
+        }
+        size_t frameLength = 4 + static_cast<size_t>(length);
+        if (buffer->readableBytes() < frameLength)
+            break;
+        string body(buffer->peek() + 4, length);
+        buffer->retrieve(frameLength);
 
-    ChatService *service = ChatService::instance();
-    auto handler = service->getHandler(js["msgid"]/*.get<int>()*/);
-    handler(conn, js, time);
+        json js = js.parse(body);
+
+        ChatService *service = ChatService::instance();
+        auto handler = service->getHandler(js["msgid"]/*.get<int>()*/);
+        handler(conn, js, time);
+    }
 }

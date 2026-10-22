@@ -58,7 +58,10 @@ void ChatService::handleRedisSubscribeMessage(int id, string msg)
     auto it = _userConnMap.find(id) ;
     if (it != _userConnMap.end())
     {
-        it->second->send(msg);
+        muduo::net::Buffer output;
+        output.append(msg);
+        output.prependInt32(msg.size());
+        it->second->send(&output);
     } else {
         _offlineMessageModel.insert(id, msg);
     }
@@ -141,7 +144,11 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
         response["errno"] = 2;
         response["errmsg"] = "user id or password is not correct";
     }
-    conn->send(response.dump());
+    string msg(response.dump());
+    muduo::net::Buffer output;
+    output.append(msg);
+    output.prependInt32(msg.size());
+    conn->send(&output);
 }
 
 void ChatService::logout(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -176,7 +183,11 @@ void ChatService::enroll(const TcpConnectionPtr &conn, json &js, Timestamp time)
     } else {
         response["errno"] = 1;
     }
-    conn->send(response.dump());
+    string msg(response.dump());
+    muduo::net::Buffer output;
+    output.append(msg);
+    output.prependInt32(msg.size());
+    conn->send(&output);
 }
 
 void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp time)
@@ -190,7 +201,11 @@ void ChatService::privateChat(const TcpConnectionPtr &conn, json &js, Timestamp 
         lock_guard<mutex> lock(_connMtx);
         auto it = _userConnMap.find(to);
         if (it != _userConnMap.end()) {  // 当前to用户在线，
-            it->second->send(js.dump());
+            string msg(js.dump());
+            muduo::net::Buffer output;
+            output.append(msg);
+            output.prependInt32(msg.size());
+            it->second->send(&output);
             return;
         }
     }
@@ -237,7 +252,13 @@ void ChatService::groupChat(const TcpConnectionPtr &conn, json &js, Timestamp ti
         {
             auto it = _userConnMap.find(id);
             if (it != _userConnMap.end())
-                it->second->send(js.dump());
+            {
+                string msg(js.dump());
+                muduo::net::Buffer output;
+                output.append(msg);
+                output.prependInt32(msg.size());
+                it->second->send(&output);
+            }
             else
                 offlineUsers.push_back(id);
         }

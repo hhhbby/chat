@@ -27,6 +27,26 @@ bool g_loggedin = false;
 
 void chatMenu(int clientFd);
 
+bool sendAll(int clientFd, const string& frame)
+{
+    size_t sentSize = 0;
+    size_t n = frame.size();
+    while (sentSize < n)
+    {
+        int ret = send(clientFd, frame.data() + sentSize, n - sentSize, 0);
+        if (ret > 0)
+        {
+            sentSize += ret;
+        } else if (ret == -1 && errno == EINTR)
+        {
+            continue;
+        } else {
+            return false;
+        }
+    }
+    return true;
+}
+
 void enroll(int clientFd)
 {
     string name;
@@ -42,8 +62,12 @@ void enroll(int clientFd)
     sendJs["passwd"] = passwd;
     string sendBuf = sendJs.dump();
 
-    int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
-    if (sendLen == -1)
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    if (!sendAll(clientFd, frame))
         ERR_EXIT("send failed in enroll");        
     
     while (sem.wait() == -1)
@@ -67,8 +91,13 @@ void login(int clientFd)
     js["id"] = id;
     js["passwd"] = passwd;
     string sendBuf = js.dump();
-    int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
-    if (sendLen == -1)
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    if (!sendAll(clientFd, frame))
         ERR_EXIT("send failed in login");
 
     while (sem.wait() == -1)
@@ -216,47 +245,69 @@ void doEnroll(json &recvJs)
 // for read thread to recv all msg from server
 void readHandler(int clientFd)
 {
+    string pending;
+    char buf[1024]{};
     while (true)
     {
-        char buf[1024]{};
-        if (recv(clientFd, buf, sizeof buf, 0) <= 0)
+        int n = recv(clientFd, buf, sizeof buf, 0);
+        if (n == 0 || (n == -1 && errno != EINTR))
         {
             close(clientFd);
             cout << "server error" << endl;
             exit(-1);
-        }
-        json js = json::parse(buf);
-        MsgType msgid = js["msgid"];
-        switch (msgid)
+        } else if (n == -1)
+            continue;
+        pending.append(buf, n);
+        while (pending.size() >= 4)
         {
-        case MsgType::PRIVATE_CHAT:
+            uint32_t length = 0;
+            memcpy(&length, pending.data(), sizeof length);
+            length = ntohl(length);
+            if (length == 0 || length > 1024 * 1024)
             {
-                string fromName = js["fromName"];
-                int fromid = js["id"];
-                string msg = js["msg"];
-                cout  << endl << fromName << "[" << fromid << "] say : " << msg  << endl;
+                cout << "msg length error" << endl;
+                exit(-5);
             }
-            break;
-        case MsgType::GROUP_CHAT:
+            size_t frameLength = 4 + static_cast<size_t>(length);
+            if (pending.size() < frameLength)
+                break;
+            string body = pending.substr(4, length);
+            pending.erase(0, frameLength);
+
+            // select service by msgid
+            json js = json::parse(body);
+            MsgType msgid = js["msgid"];
+            switch (msgid)
             {
-                string fromName = js["fromName"];
-                int fromid = js["id"];
-                string msg = js["msg"];
-                int groupid = js["groupid"];
-                cout  << endl << fromName << "[" << fromid << "][group " << groupid << "] say : " << msg << endl;
+            case MsgType::PRIVATE_CHAT:
+                {
+                    string fromName = js["fromName"];
+                    int fromid = js["id"];
+                    string msg = js["msg"];
+                    cout  << endl << fromName << "[" << fromid << "] say : " << msg  << endl;
+                }
+                break;
+            case MsgType::GROUP_CHAT:
+                {
+                    string fromName = js["fromName"];
+                    int fromid = js["id"];
+                    string msg = js["msg"];
+                    int groupid = js["groupid"];
+                    cout  << endl << fromName << "[" << fromid << "][group " << groupid << "] say : " << msg << endl;
+                }
+                break;
+            case MsgType::LOGIN_ACK:
+                doLogin(js);
+                break;
+            case MsgType::ENROLL_ACK:
+                doEnroll(js);
+                break;
+            default:
+                break;
             }
-            break;
-        case MsgType::LOGIN_ACK:
-            doLogin(js);
-            break;
-        case MsgType::ENROLL_ACK:
-            doEnroll(js);
-            break;
-        default:
-            break;
-        }
-        if (msgid != MsgType::LOGIN_ACK && msgid != MsgType::ENROLL_ACK)
-            cout << endl << "input your command:" << std::flush;
+            if (msgid != MsgType::LOGIN_ACK && msgid != MsgType::ENROLL_ACK)
+                cout << endl << "input your command:" << std::flush;
+            }
     }
 }
 
@@ -289,7 +340,13 @@ bool addfriend(int clientFd, string cmd)
     js["id"] = g_me.id;
     js["friendid"] = friendid;
     string sendBuf = js.dump();
-    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    return sendAll(clientFd, frame);
 }
 
 bool chat(int clientFd, string cmd)
@@ -307,7 +364,13 @@ bool chat(int clientFd, string cmd)
     js["to"] = friendid;
     js["msg"] = cmd.substr(idx + 1);
     string sendBuf = js.dump();
-    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    return sendAll(clientFd, frame);
 }
 
 bool addgroup(int clientFd, string cmd)
@@ -321,7 +384,13 @@ bool addgroup(int clientFd, string cmd)
     js["groupname"] = cmd.substr(0, idx);
     js["groupdesc"] = cmd.substr(idx + 1);
     string sendBuf = js.dump();
-    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    return sendAll(clientFd, frame);
 }
 
 bool joingroup(int clientFd, string cmd)
@@ -334,7 +403,13 @@ bool joingroup(int clientFd, string cmd)
     js["id"] = g_me.id;
     js["groupid"] = groupid;
     string sendBuf = js.dump();
-    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    return sendAll(clientFd, frame);
 }
 
 bool groupchat(int clientFd, string cmd)
@@ -352,7 +427,13 @@ bool groupchat(int clientFd, string cmd)
     js["groupid"] = groupid;
     js["msg"] = cmd.substr(idx + 1);
     string sendBuf = js.dump();
-    return send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) > 0;
+
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    return sendAll(clientFd, frame);
 }
 
 void logout(int clientFd)
@@ -361,9 +442,14 @@ void logout(int clientFd)
     js["msgid"] = MsgType::LOGOUT;
     js["id"] = g_me.id;
     string sendBuf = js.dump();
-    if (send(clientFd, sendBuf.c_str(), sendBuf.size(), 0) < 0)
+    uint32_t length = htonl(sendBuf.size());
+    string frame;
+    frame.append(reinterpret_cast<const char*>(&length), sizeof length);
+    frame.append(sendBuf);
+
+    if (!sendAll(clientFd, frame))
     {
-        cout << "send loginout msg error -> " << sendBuf << endl;
+        cout << "send logout msg error -> " << sendBuf << endl;
     } else {
         g_loggedin = false;
     }
