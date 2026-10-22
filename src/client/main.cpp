@@ -17,6 +17,9 @@ using json = nlohmann::json;
 
 #include <arpa/inet.h>
 #include <unistd.h>
+#include "sem.hpp"
+
+Sem sem(0);
 
 User g_me;
 vector<User> g_currentUserFriendList;
@@ -29,6 +32,8 @@ void login(int clientFd);
 void logout(int clientFd);
 void help();
 void chatMenu(int clientFd);
+void doLogin(json& js);
+void doEnroll(json& js);
 void readHandler(int clientFd);
 
 int main(int argc, char** argv)
@@ -54,6 +59,8 @@ int main(int argc, char** argv)
     if (connect(clientFd, reinterpret_cast<const sockaddr*>(&serverAddr), static_cast<socklen_t>(sizeof(sockaddr_in))) != 0)
         ERR_EXIT("connect failed");
 
+    // 在连接服务器端成功后就创建唯一一个读取线程，用于处理后面所有的读取
+    thread(readHandler, clientFd).detach();
     while(true)
     {
         cout << "client choices" << endl;
@@ -69,7 +76,7 @@ int main(int argc, char** argv)
         } else if (choice == 2) {
             login(clientFd);
         } else if (choice == 3) {
-            exit(-1);
+            exit(0);
         } else {
             cout << "invaild choice, try again" << endl;
         }
@@ -94,20 +101,12 @@ void enroll(int clientFd)
     int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
     if (sendLen == -1)
         ERR_EXIT("send failed in enroll");        
-    char recvBuf[1024]{};
-    int recvLen = recv(clientFd, recvBuf, sizeof(recvBuf), 0);
-    if (recvLen <= 0)
-        ERR_EXIT("recv failed in enroll");
-    json recvJs = json::parse(recvBuf);
-    int errnum = recvJs["errno"];
-    if (errnum == 0)
+    
+    while (sem.wait() == -1)
     {
-        int id = recvJs["id"];
-        cout << "enroll succedd, your id is " << id << endl;
-    } else {
-        cout << "enroll failed" << endl;
+        if (errno != EINTR)
+            exit(-3);
     }
-    // MsgType type = recvJs["msgid"];
 }
 
 void login(int clientFd)
@@ -127,63 +126,16 @@ void login(int clientFd)
     int sendLen = send(clientFd, sendBuf.c_str(), sendBuf.size(), 0);
     if (sendLen == -1)
         ERR_EXIT("send failed in login");
-    char recvBuf[1024]{};
-    int recvLen = recv(clientFd, recvBuf, sizeof(recvBuf), 0);
-    if (recvLen <= 0)
-        ERR_EXIT("recv failed in login");
-    json recvJs = json::parse(recvBuf);
-    int errnum = recvJs["errno"];
-    if (errnum == 0)
+
+    while (sem.wait() == -1)
     {
-        string name = recvJs["name"];
-        g_me.id = id;
-        g_me.name = name;
-        g_me.state = "online";
-        g_currentUserFriendList.clear();
-        if (recvJs.contains("friends"))
-        {
-            vector<string> friends = recvJs["friends"];
-            for (const string& friendStr : friends)
-            {
-                json js = json::parse(friendStr);
-                User user{js["id"], js["name"], "", js["state"]};
-                g_currentUserFriendList.push_back(user);
-            }
-        }
-        g_currentUserGroupList.clear();
-        if (recvJs.contains("groups"))
-        {
-            vector<string> groups = recvJs["groups"];
-            for (const string& groupStr : groups)
-            {
-                json js = json::parse(groupStr);
-                Group group{js["id"], js["groupname"], js["groupdesc"]};
-                g_currentUserGroupList.push_back(group);
-            }
-        }
-        showinfo();
-        thread(readHandler, clientFd).detach();
-
-        if (recvJs.contains("offlinemsgs"))
-        {
-            vector<string> offlinemsgs = recvJs["offlinemsgs"];
-            for (const string& msgStr : offlinemsgs)
-            {
-                json js = json::parse(msgStr);
-                json message = json::parse(js["message"].get<string>());
-                string fromName = message["fromName"];
-                int fromId = message["id"];
-                string msg = message["msg"];
-                cout << fromName << "[" << fromId << "] say : " << msg << endl;
-            }
-        }
-        g_loggedin = true;
-        chatMenu(clientFd);
-
-    } else {
-        cout << "login failed:" << recvJs["errmsg"] << endl;
+        if (errno != EINTR)
+            exit(-3);
     }
-
+    if (g_loggedin)
+    {
+        chatMenu(clientFd);
+    }
 }
 
 
@@ -266,6 +218,72 @@ void chatMenu(int clientFd)
     }
 }
 
+void doLogin(json &recvJs)
+{
+    int errnum = recvJs["errno"];
+    if (errnum == 0)
+    {
+        string name = recvJs["name"];
+        g_me.id = recvJs["id"];
+        g_me.name = name;
+        g_me.state = "online";
+        g_currentUserFriendList.clear();
+        if (recvJs.contains("friends"))
+        {
+            vector<string> friends = recvJs["friends"];
+            for (const string& friendStr : friends)
+            {
+                json js = json::parse(friendStr);
+                User user{js["id"], js["name"], "", js["state"]};
+                g_currentUserFriendList.push_back(user);
+            }
+        }
+        g_currentUserGroupList.clear();
+        if (recvJs.contains("groups"))
+        {
+            vector<string> groups = recvJs["groups"];
+            for (const string& groupStr : groups)
+            {
+                json js = json::parse(groupStr);
+                Group group{js["id"], js["groupname"], js["groupdesc"]};
+                g_currentUserGroupList.push_back(group);
+            }
+        }
+        showinfo();
+        if (recvJs.contains("offlinemsgs"))
+        {
+            vector<string> offlinemsgs = recvJs["offlinemsgs"];
+            for (const string& msgStr : offlinemsgs)
+            {
+                json js = json::parse(msgStr);
+                json message = json::parse(js["message"].get<string>());
+                string fromName = message["fromName"];
+                int fromId = message["id"];
+                string msg = message["msg"];
+                cout << fromName << "[" << fromId << "] say : " << msg << endl;
+            }
+        }
+        g_loggedin = true;
+    } else {
+        cout << "login failed:" << recvJs["errmsg"] << endl;
+        g_loggedin = false;
+    }
+    sem.post();
+}
+
+void doEnroll(json &recvJs)
+{
+    int errnum = recvJs["errno"];
+    if (errnum == 0)
+    {
+        int id = recvJs["id"];
+        cout << "enroll succedd, your id is " << id << endl;
+    } else {
+        cout << "enroll failed" << endl;
+    }
+    sem.post();
+}
+
 void readHandler(int clientFd)
 {
     while (true)
@@ -274,6 +292,7 @@ void readHandler(int clientFd)
         if (recv(clientFd, buf, sizeof buf, 0) <= 0)
         {
             close(clientFd);
+            cout << "server error" << endl;
             exit(-1);
         }
         json js = json::parse(buf);
@@ -297,10 +316,17 @@ void readHandler(int clientFd)
                 cout  << endl << fromName << "[" << fromid << "][group " << groupid << "] say : " << msg << endl;
             }
             break;
+        case MsgType::LOGIN_ACK:
+            doLogin(js);
+            break;
+        case MsgType::ENROLL_ACK:
+            doEnroll(js);
+            break;
         default:
             break;
         }
-        cout << endl << "input your command:" << std::flush;
+        if (msgid != MsgType::LOGIN_ACK && msgid != MsgType::ENROLL_ACK)
+            cout << endl << "input your command:" << std::flush;
     }
     
 }

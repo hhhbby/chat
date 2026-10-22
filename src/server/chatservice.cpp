@@ -96,6 +96,7 @@ void ChatService::login(const TcpConnectionPtr &conn, json &js, Timestamp time)
     User user = _userModel.query(id);
 
     json response;
+    response["id"] = id;
     response["msgid"] = MsgType::LOGIN_ACK;
     if (user.id == -1)
     {
