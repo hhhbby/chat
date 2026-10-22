@@ -102,6 +102,8 @@ void Redis::observer_channel_message()
                 _notify_message_handler(channel, message);
             }
         }
+        if (reply != nullptr)
+            freeReplyObject(reply);
     }
     std::cout << "observer_channel_message finished --------\n"; 
 }
